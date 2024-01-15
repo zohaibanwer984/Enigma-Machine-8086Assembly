@@ -1,8 +1,12 @@
-; Assembly Enigma Machine
+; Enigma Machine Simulation
+; Written in NASM Assembly For 8086
+; BY @zohaibanwer984
+
 section .data
     ; ------------------- Data Section ---------------------
-    alpha DB     'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
     ;------------ 5 ROTORS------------------ NOTCH--TURN OVER--
+    ; BASE       'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     rotor_I   DB 'EKMFLGDQVZNTOWYHXUSPAIBRCJ', 'Q', 'R'
     rotor_II  DB 'AJDKSIRUXBLHWTMCQGZNPYFVOE', 'E', 'F'
     rotor_III DB 'BDFHJLCPRTXVZNYEIWGAKMUSQO', 'V', 'W'
@@ -15,56 +19,64 @@ section .data
     refelctor_C DB 'FVPJIAOYEDRZXWGCTKUQSBNMHL'
 
     ;--------- CONFIG
-    ;Configure an enigma machine
+    ; Configure an enigma machine
     enimga_refelctor equ refelctor_B
     enigma_rotor_1   equ rotor_III
     enigma_rotor_2   equ rotor_II
     enigma_rotor_3   equ rotor_I
-
     ;--------- END CONFIG
 
+    ; Alphabet string
+    alpha DB     'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+    ; Messages and Prompts
     getStringMsg DB 'Enter a string : ', '$'
     result DB 'ENIGMA output  : ', '$'
     newline DB 0AH, 0DH, '$'
     farewellMessage DB 0AH, 0DH,'Have a good day !...', 0AH, 0DH, 'Written in x16 Assembly by ZAM',0AH, 0DH, '$'
 
+    ; Buffer for store User input
     bufferSize equ 255
     inputBuffer DB bufferSize
     inputSize   DB 0
                 times bufferSize DB '$'
 
-    r1 DW enigma_rotor_1
+    ; Enigma Rotor Pointers
+    r1 DW enigma_rotor_1 ; Rotor 1
     r1_offset DW 0
     r1_turnNext DB 0
 
-    r2 DW enigma_rotor_2
+    r2 DW enigma_rotor_2 ; Rotor 2
     r2_offset DW 0
     r2_turnNext DB 0
 
-    r3 DW enigma_rotor_3
+    r3 DW enigma_rotor_3 ; Rotor 3
     r3_offset DW 0
     r3_turnNext DB 0
 
 section .text
     ; ------------------- Code Section ---------------------
     ORG 100H        ; COM file's entry point
-    CALL main
+    CALL main       ; Call main procedure
     exit:
+        ; Print farewell
         MOV AH, 09H
         LEA DX, [newline]
         INT 21H
         LEA DX, [farewellMessage]
         INT 21H
-        RET
+        ; return to DOS
         MOV AX, 4C00H
         INT 21H
 
     ; ------------------- Procedure Definitions ---------------------
-
-    ; Initializes the game and displays the welcome message
     main:
-        ; call simulate_enigma
+        ; Handles user input pass process through enigma
+        ; print the result back
+
+        ; Get User input
         CALL getUserInput
+        ; Loop thur Each character in buffer
         MOV CL, [inputSize]
         LEA BX, [inputBuffer + 2]
         loop_forEachChar:
@@ -72,6 +84,7 @@ section .text
             INC BX
             DEC CL
             JNZ loop_forEachChar
+        ; Prints the result
         MOV AH, 09H
         LEA DX, [result]
         INT 21H
@@ -80,212 +93,216 @@ section .text
         RET
 
     getUserInput:
-            ;get input from user
-            MOV AH, 09H
-            LEA DX, [getStringMsg]
-            INT 21H
+        ; Get User Input and stores in input buffer
 
-            MOV AH, 0AH
-            LEA DX, [inputBuffer]
-            INT 21H
+        ; Prints input prompt
+        MOV AH, 09H
+        LEA DX, [getStringMsg]
+        INT 21H
+        ; DOS Operation to get string input
+        MOV AH, 0AH
+        LEA DX, [inputBuffer]
+        INT 21H
+        ; Prints newline
+        MOV AH, 09H
+        LEA DX, [newline]
+        INT 21H
+        RET
 
-            MOV AH, 09H
-            LEA DX, [newline]
-            INT 21H
-            RET
     simulate_enigma:
-        ; INPUT ADDRESS OF CURRENT CHAR in BX
-        PUSH CX
-        MOV AL, [BX]
-        PUSH BX
+        ; Gets char pass through the enigma and stores the result
+        ; INPUT  : Address of current char in BX register
+        ; RETURN : None
+
+        PUSH CX       ; Push CX to stack to reserve counter used by main
+        MOV AL, [BX]  ; Load the char to AL
+        PUSH BX       ; Push address of current char on stack
         ; Check if the character is an alphabet character
-        cmp al, 'A'
-        jl not_alpha
-        cmp al, 'Z'
-        jbe alpha_valid
-        cmp al, 'a'
-        jl not_alpha
-        cmp al, 'z'
-        jbe alpha_valid
-        jmp not_alpha
-
+        CMP AL, 'A'
+        JL not_alpha    ; If not a valid skip
+        CMP AL, 'Z'
+        JBE alpha_valid ; If valid continue
+        CMP AL, 'a'
+        JL not_alpha
+        CMP AL, 'z'
+        JBE alpha_valid
+        not_alpha:
+            jmp skip_toResult
         alpha_valid:
-        ; CONVERT TO UPPER CASE
+        ; Convert input to upper case
         CALL toUpperCase
-        PUSH AX ; store AL to STACK
-
-        ;CYCLE ROTOR 1
+        PUSH AX     ; Store AL to STACK
+        ; Cycle first rotor once
         LEA SI, [r1]
         CALL cycleRotor
-
-        ; CHECK FOR DOUBLE STEP ON SECOND ROTOR
-        LEA SI, [r2]
-        MOV DI, [SI]
-        MOV BX, [SI + 2]
-
-        MOV AH, [alpha + BX]
-        MOV AL, [DI + 26]
-        ; IF ROTOR_2 NOTCH IS ACTIVE
-        TEST AL, AH
+        ; Check if second rotor need to rotor
+        LEA SI, [r2]         ; Load second rotor pointer address
+        MOV DI, [SI]         ; Load second rotor address
+        MOV BX, [SI + 2]     ; Load offset value in BX
+        MOV AH, [alpha + BX] ; Load char from alpha[offset]
+        MOV AL, [DI + 26]    ; Load notch char of rotor
+        CMP AL, AH           ; Check if notch is active
         JNE skip_rotate
-            CALL cycleRotor
+            CALL cycleRotor  ; Cycle second rotor
         skip_rotate:
-
-        ; check all 2 rotors and if turn next is enable advance the next rotor by 1
+        ; Check first two rotors and if turn next is enable advance the next rotor by 1
         MOV CX, 2
         LEA SI, [r1]
         loop_stepRotors:
-            MOV AL, [SI + 4]
-            CMP AL, 1
-            JNE skip_cycleNext
-                MOV [SI + 4], BYTE 0
-                ADD SI, 5 ; SET NEXT ROTOR ADDRESS
-                CALL cycleRotor
+            MOV AL, [SI + 4]          ; Load rotor nextTurn flag
+            TEST AL, 1                ; Check flag
+            JNE skip_cycleNext        ; Skip if flag not active
+                MOV [SI + 4], BYTE 0  ; Clear flag 
+                ADD SI, 255           ; Set next rotor pointer in SI
+                CALL cycleRotor       ; Cycle the next rotor
             skip_cycleNext:
             DEC CX
             JNZ loop_stepRotors
-
-        POP AX ;get the input stored back
-        ; PASS THRU ALL ROTORS FORWARD
+        ; Get stored input back from stack to AL
+        POP AX
+        ; Loop all each rotor and pass the input
         MOV CX, 3
-        LEA SI, [r1]
+        LEA SI, [r1]              ; Load first rotor pointer
+        LEA BX, [alpha]           ; Load alphabet string address into BX
+        CALL getIndexofChar       ; Convert char to index in BX
         loop_passRF:
-            CALL passRotorForward
-            ADD SI, 5 ; NEXT ROT
+            CALL passRotorForward ; Pass the char
+            ADD SI, 5             ; Load next rotor pointer in SI
             DEC CX
-            JNZ loop_passRF
-        ; PASS THRU REFELECTOR
+            JNZ loop_passRF       ; Repeat until CX is zero
+        MOV AL, [alpha + BX]      ; Convert the index back to char
+        ; Now pass the char through refelector
         CALL passRefelector
-        ; PASS THRU ALL ROTROS REVERSE
+        ; Loop back through all each rotor in reverse order and pass the char
         MOV CX, 3
-        LEA SI, [r3]
+        LEA SI, [r3]              ; Load last rotor pointer
+        LEA BX, [alpha]           ; Load alphabet string address into BX
+        CALL getIndexofChar       ; Convert char to index in BX
         loop_passRR:
-            CALL passRotorReverse
-            SUB SI, 5 ; NEXT ROT
+            CALL passRotorReverse ; Pass the char
+            SUB SI, 5             ; Load next rotor pointer in SI
             DEC CX
-            JNZ loop_passRR
-        not_alpha:
-        POP BX
-        MOV [BX], AL
-        POP CX
-        ; RETURN BX, CX back
+            JNZ loop_passRR       ; Repeat until CX is zero
+        MOV AL, [alpha + BX]      ; Convert the index back to char
+        skip_toResult:
+        ; Stores the processed char back to its destination 
+        POP BX         ; Restore the current char address into BX
+        MOV [BX], AL   ; Update the char
+        POP CX         ; Retorse the CX from Stack
         RET
 
     passRefelector:
-        ; INPUT AL plain-text char
-        LEA BX, [alpha]
-        CALL getIndexofChar
-        MOV SI, enimga_refelctor
-        MOV AL, [SI + BX]
+        ; Pass the char through selected Refelector
+        ; INPUT  : Input char in AL
+        ; RETURN : Resultant char in AL
+
+        LEA BX, [alpha]            ; Load alphabet string address into BX
+        CALL getIndexofChar        ; Get the index of char into BX
+        MOV SI, enimga_refelctor   ; Load the refelector address in SI
+        MOV AL, [SI + BX]          ; Get the char from refelector[index]
         RET
 
     passRotorForward:
-        ; INPUT AL plain-text char
-        ; INPUT SI rotor address
+        ; Pass the char left to right through selected rotor
+        ; INPUT  : Index value in BX & rotor address pointer in SI
+        ; RETURN : New index value in BX
 
-        MOV BX, alpha
-        CALL getIndexofChar
-
-        MOV DI, [SI]
-        ADD BX, [SI + 2]
-        CALL indexCorrection
-        MOV AL, [DI + BX]
-        MOV BX, alpha
-        CALL getIndexofChar
-        ADD BX, 26
-        SUB BX, [SI + 2]
-        CALL indexCorrection
-        MOV AL, [alpha + BX]
-
-        ; RETURN  AL cipher-text char
+        MOV DI, [SI]             ; Load the cipher string address into DI
+        ADD BX, [SI + 2]         ; Add rotor offset into index
+        CALL indexCorrection     ; Index % 26
+        MOV AL, [DI + BX]        ; Load char from cipher[index]
+        LEA BX, [alpha]          ; Load alphabet string address into BX
+        CALL getIndexofChar      ; Convert char to index in BX
+        ADD BX, 26               ; Add index + 26
+        SUB BX, [SI + 2]         ; Substract offset from index
+        CALL indexCorrection     ; Index % 26
         RET
 
     passRotorReverse:
-        ; INPUT AL cypher-text char
-        ; INPUT SI rotor address
-        MOV BX, alpha
-        CALL getIndexofChar
+        ; Pass the char right to left through selected rotor
+        ; INPUT  : Index value in BX & rotor address pointer in SI
+        ; RETURN : New index value in BX
 
-        ADD BX, [SI + 2]
-        CALL indexCorrection
-        MOV AL, [alpha + BX]
-        MOV BX, [SI]
-        CALL getIndexofChar
-        ADD BX, 26
-        SUB BX, [SI + 2]
-        CALL indexCorrection
-        MOV AL, [alpha + BX]
-        ; RETURN AL plain-text char
+        ADD BX, [SI + 2]         ; Add rotor offset into index
+        CALL indexCorrection     ; Index % 26
+        MOV AL, [alpha + BX]     ; Load char from alpha[index]
+        MOV BX, [SI]             ; Load cipher string address into BX
+        CALL getIndexofChar      ; Convert char to index in BX
+        ADD BX, 26               ; Add index + 26
+        SUB BX, [SI + 2]         ; Substract offset from index
+        CALL indexCorrection     ; Index % 26
         RET
 
     cycleRotor:
-        ;INPUT SI rotor 
-        PUSH AX
-        MOV DI, [SI]
-        MOV BX, [SI + 2]
-        INC BX
-        CMP BX, 26
-        JL skip
-            CALL indexCorrection
-        skip:
-        MOV [SI + 2], BX
-        ; if base[offset] == turnover set r1 rotate next 1
-        MOV AH, [alpha + BX]
-        MOV AL, [DI + 27]
-        CMP AH, AL
-        JNE skip1
-        MOV [SI + 4], BYTE 1 ; set turn next to 1
-        skip1:
-        POP AX
+        ; Rotate the current rotor on step if notch is active set turnNext flag
+        ; INPUT : Rotor pointer in SI
+        ; RETURN : None
+
+        PUSH AX                 ; Reserve AX to stack
+        MOV DI, [SI]            ; Load rotor address into DI
+        MOV BX, [SI + 2]        ; Load offset value into BX
+        INC BX                  ; Increament offset
+        CALL indexCorrection    ; Offset % 26
+        MOV [SI + 2], BX        ; Store the offset
+        MOV AH, [alpha + BX]    ; Load char from alpha[offset] in AH
+        MOV AL, [DI + 27]       ; Load char from rotor notch in AL
+        CMP AH, AL              ; Check if both char are equal
+        JNE skip_increment      ; If not equl skip next instruction
+        MOV [SI + 4], BYTE 1    ; Set turnNext flag to 1
+        skip_increment:
+        POP AX                  ; Restore AX from stack
         RET
 
     indexCorrection:
-        ; INPUT BX Value
-        PUSH DX ; for some reason these need to be ZERO
-        MOV DX, 0
-        MOV AX, BX
-        MOV BX, 26
-        CMP AX, 0
-        JZ if_zero
-        DIV BX
-        MOV BX, DX
-        JMP return
+        ; Do modulus by 26 on BX
+        ; INPUT  : Value in BX
+        ; RETURN : Resultant value in BX
+
+        PUSH DX      ; Reserve DX to stack
+        MOV DX, 0    ; Clear DX before operation
+        MOV AX, BX   ; Store the value in AX
+        MOV BX, 26   ; Load 26 in BX
+        CMP AX, 0    ; Check if value is zero 
+        JZ if_zero   ; Skip division if zero
+        DIV BX       ; Divide the value by 26
+        MOV BX, DX   ; Store remainder in BX
+        JMP return   ; Jump to return
         if_zero:
-        MOV BX, 0
+        MOV BX, 0    ; Set value to 0
         return:
-        POP DX
+        POP DX       ; Restore DX from stack
         RET
-        ; RET BX result
 
     toUpperCase:
-        ; INPUT char stored in AL
+        ; Convert char to uppercase in AL
+        ; INPUT  : char stored in AL
+        ; RETURN : uppercase char in AL
 
         ; Check if the character is a lowercase letter
         CMP AL, 'a'
         JL not_lowercase
         CMP AL, 'z'
         JG not_lowercase
-
         SUB Al, 32
         not_lowercase
         RET
-        ; RETURN UPPER CASE CHAR IN AL
 
     getIndexofChar:
-        ; INPUT BX points to string to find index from.
-        ; INPUT AL char to be check
-        PUSH SI
-        MOV SI, 0
+        ; Gets index value of char in given string
+        ; INPUT   : Address of string in BX & char in AL
+        ; RETURNS : Index value in BX
+
+        PUSH SI                 ; Reserve SI to stack
+        ;loop through each char in string
+        MOV SI, 0               ; Clear the SI
         loop_check:
-            MOV AH, [BX + SI]
-            CMP AH, AL
-            JE break
-            INC SI
-            CMP SI, 26
-            JNZ loop_check
+            MOV AH, [BX + SI]   ; Load char from string[offset] in AL
+            CMP AH, AL          ; Compare input char and string char
+            JE break            ; Break loop if equal
+            INC SI              ; Increament offset
+            CMP SI, 26          ; Check if offset
+            JL loop_check       ; Loop until offset is less then 26
         break:
-        ; SI contains offset
-        MOV BX, SI
-        POP SI
+        MOV BX, SI              ; store index value in BX
+        POP SI                  ; restore SI from stack
         RET
-        ; RETURN OFFSET IN BX
