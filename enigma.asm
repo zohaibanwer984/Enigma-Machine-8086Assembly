@@ -19,11 +19,18 @@ section .data
     refelctor_C DB 'FVPJIAOYEDRZXWGCTKUQSBNMHL'
 
     ;--------- CONFIG
-    ; Configure an enigma machine
+
+    ; Configure enigma machine reflector
     enimga_refelctor equ refelctor_B
+    ; Configure enigma machine rotors
     enigma_rotor_1   equ rotor_III
     enigma_rotor_2   equ rotor_II
     enigma_rotor_3   equ rotor_I
+    ; Configure rotor intial offset
+    rotor_1_offset equ 0
+    rotor_2_offset equ 0
+    rotor_3_offset equ 0
+
     ;--------- END CONFIG
 
     ; Alphabet string
@@ -43,15 +50,15 @@ section .data
 
     ; Enigma Rotor Pointers
     r1 DW enigma_rotor_1 ; Rotor 1
-    r1_offset DW 0
+    r1_offset DW rotor_1_offset
     r1_turnNext DB 0
 
     r2 DW enigma_rotor_2 ; Rotor 2
-    r2_offset DW 0
+    r2_offset DW rotor_2_offset
     r2_turnNext DB 0
 
     r3 DW enigma_rotor_3 ; Rotor 3
-    r3_offset DW 0
+    r3_offset DW rotor_3_offset
     r3_turnNext DB 0
 
 section .text
