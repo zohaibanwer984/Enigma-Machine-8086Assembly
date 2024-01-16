@@ -5,7 +5,7 @@
 section .data
     ; ------------------- Data Section ---------------------
 
-    ;------------ 5 ROTORS------------------ NOTCH--TURN OVER--
+    ;------------ 5 ROTORS--------------------NOTCH--TURN OVER--
     ; BASE       'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     rotor_I   DB 'EKMFLGDQVZNTOWYHXUSPAIBRCJ', 'Q', 'R'
     rotor_II  DB 'AJDKSIRUXBLHWTMCQGZNPYFVOE', 'E', 'F'
@@ -134,7 +134,7 @@ section .text
         CMP AL, 'z'
         JBE alpha_valid
         not_alpha:
-            jmp skip_toResult
+            JMP skip_toResult
         alpha_valid:
         ; Convert input to upper case
         CALL toUpperCase
@@ -170,8 +170,9 @@ section .text
         ; Loop all each rotor and pass the input
         MOV CX, 3
         LEA SI, [r1]              ; Load first rotor pointer
-        LEA BX, [alpha]           ; Load alphabet string address into BX
-        CALL getIndexofChar       ; Convert char to index in BX
+        MOV BH, 0                 ; Clear BH cause BX is needed
+        MOV BL, AL                ; Copy the char to BL
+        SUB BL, 41H               ; Substract ASCII value of 'A' to get index of char in BX
         loop_passRF:
             CALL passRotorForward ; Pass the char
             ADD SI, 5             ; Load next rotor pointer in SI
@@ -183,8 +184,9 @@ section .text
         ; Loop back through all each rotor in reverse order and pass the char
         MOV CX, 3
         LEA SI, [r3]              ; Load last rotor pointer
-        LEA BX, [alpha]           ; Load alphabet string address into BX
-        CALL getIndexofChar       ; Convert char to index in BX
+        MOV BH, 0                 ; Clear BH cause BX is needed
+        MOV BL, AL                ; Copy the char to BL
+        SUB BL, 41H               ; Substract ASCII value of 'A' to get index of char index in BX
         loop_passRR:
             CALL passRotorReverse ; Pass the char
             SUB SI, 5             ; Load next rotor pointer in SI
@@ -203,8 +205,9 @@ section .text
         ; INPUT  : Input char in AL
         ; RETURN : Resultant char in AL
 
-        LEA BX, [alpha]            ; Load alphabet string address into BX
-        CALL getIndexofChar        ; Get the index of char into BX
+        MOV BH, 0                  ; Clear BH cause BX is needed
+        MOV BL, AL                 ; Copy the char to BL
+        SUB BL, 41H                ; Substract ASCII value of 'A' to get index of char in BX
         MOV SI, enimga_refelctor   ; Load the refelector address in SI
         MOV AL, [SI + BX]          ; Get the char from refelector[index]
         RET
@@ -217,9 +220,9 @@ section .text
         MOV DI, [SI]             ; Load the cipher string address into DI
         ADD BX, [SI + 2]         ; Add rotor offset into index
         CALL indexCorrection     ; Index % 26
-        MOV AL, [DI + BX]        ; Load char from cipher[index]
-        LEA BX, [alpha]          ; Load alphabet string address into BX
-        CALL getIndexofChar      ; Convert char to index in BX
+        MOV BL, [DI + BX]        ; Load char from cipher[index]
+        SUB BL, 41H              ; substract ASCII value of 'A' to get index in BX
+        MOV BH, 0                ; clear BH cause BX is needed
         ADD BX, 26               ; Add index + 26
         SUB BX, [SI + 2]         ; Substract offset from index
         CALL indexCorrection     ; Index % 26
